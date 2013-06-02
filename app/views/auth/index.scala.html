@@ -1,0 +1,36 @@
+@()(implicit request: RequestHeader)
+@import com.github.kompot.play2sec.authentication.providers.oauth2.facebook.FacebookAuthProvider
+@import com.github.kompot.play2sec.authentication.providers.oauth2.google.GoogleAuthProvider
+@import com.github.kompot.play2sec.authentication.providers.oauth2.vkontakte.VkontakteAuthProvider
+@import com.github.kompot.play2sec.authentication.providers.oauth1.twitter.TwitterAuthProvider
+
+@auth.main() {
+  <div class="row">
+    <div class="col col-lg-6" ng-controller="UserCtrl">
+
+      <p>Login with your favourite social network</p>
+      <p>
+        <a class="btn btn-default" href="@routes.Authorization.authenticate(FacebookAuthProvider.PROVIDER_KEY)" class="btn btn-small">Facebook</a>
+        <a class="btn btn-default" href="@routes.Authorization.authenticate(GoogleAuthProvider.PROVIDER_KEY)" class="btn btn-small">Google</a>
+        <a class="btn btn-default" href="@routes.Authorization.authenticate(VkontakteAuthProvider.PROVIDER_KEY)" class="btn btn-small">Vkontakte</a>
+        <a class="btn btn-default" href="@routes.Authorization.authenticate(TwitterAuthProvider.PROVIDER_KEY)" class="btn btn-small">Twitter</a>
+      </p>
+      <p>or using email and password</p>
+
+      <form
+        ng-submit="login()"
+        name="form">
+
+        @controls.text("user", "email", "Email", "")
+
+        @controls.password("user", "password", "Password", "")
+
+        <input type="submit" class="btn btn-success btn-large" value="Login" />
+        <a href="#" class="btn btn-default btn-small" ng-click="signup()" value="Signup">Signup</a>
+
+        @rpcResults()
+
+      </form>
+    </div>
+  </div>
+}

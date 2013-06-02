@@ -1,0 +1,23 @@
+@(errorType: String = "error", showSuccess: Boolean = true, showError: Boolean = true, showErrorSummary: Boolean = true, showErrorKeys: Boolean = true)
+<div>
+  @if(showSuccess) {
+    <div class="alert alert-success" ng-show="rpcResult.success.message" ng-cloak="">
+      {{rpcResult.success.message}}
+    </div>
+  }
+  @if(showError) {
+    <div class="alert alert-error" ng-show="rpcResult.@{errorType}.message || rpcResult.@{errorType}.data">
+      @if(showErrorSummary) {
+        <p ng-bind="rpcResult.@{errorType}.message"></p>
+      }
+      <div ng-repeat="(key, error) in rpcResult.@{errorType}.data">
+        @if(showErrorKeys) {
+          <h4 ng-show="key">Field {{key}}</h4>
+        }
+        <ul>
+          <li class="error" ng-repeat="e in error">{{e}}</li>
+        </ul>
+      </div>
+    </div>
+  }
+</div>

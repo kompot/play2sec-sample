@@ -1,0 +1,19 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+# Home page
+GET     /                           controllers.Application.index
+
+# Map static resources from the /public folder to the /assets URL path
+GET     /assets/*file               controllers.Assets.at(path="/public", file)
+
+GET    /auth                        controllers.Authorization.auth
+POST   /auth/login                  controllers.Authorization.login
+PUT    /auth/signup                 controllers.Authorization.signup
+GET    /auth/logout                 controllers.Authorization.logout
+GET    /auth/external/:provider     controllers.Authorization.authenticate(provider: String)
+DELETE /auth/external/:provider     controllers.Authorization.unlink(provider: String)
+GET    /auth/anonymous              controllers.Authorization.createAnonymousAccount(returnTo: String ?= "/")
+POST   /auth/allowed                controllers.Authorization.allowed()
+GET    /auth/verify-email           controllers.Authorization.verifyEmailAndLogin(token: String)

@@ -1,0 +1,16 @@
+@(entityType: String, fieldName: String, label: String, placeholder: String,
+    clazz: Option[String] = None, ngChange: Option[String] = None)
+<div class="control-group" ng-class="{error: rpcResult.error.data.@fieldName}">
+  <label class="control-label">@label</label>
+  <div class="controls">
+    <input ng-model="@{entityType}.@fieldName"
+        type="text" name="@fieldName" placeholder="@placeholder"
+        class="@clazz.getOrElse("")" @ngChange.map { ngc =>
+          ng-change="@ngc"
+        }
+        />
+    <span ng-show="rpcResult.error.data.@fieldName">
+      <span ng-repeat="error in rpcResult.error.data.@fieldName" class="help-inline" ng-bind="error"></span>
+    </span>
+  </div>
+</div>

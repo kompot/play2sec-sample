@@ -1,0 +1,9 @@
+400:play.modules.reactivemongo.ReactiveMongoPlugin
+1500:com.typesafe.plugin.CommonsMailerPlugin
+10040:com.github.kompot.play2sec.authentication.providers.MyUsernamePasswordAuthProvider
+10060:com.github.kompot.play2sec.authentication.providers.oauth1.twitter.TwitterAuthProvider
+10070:com.github.kompot.play2sec.authentication.providers.oauth2.facebook.FacebookAuthProvider
+10080:com.github.kompot.play2sec.authentication.providers.oauth2.google.GoogleAuthProvider
+10090:com.github.kompot.play2sec.authentication.providers.oauth2.vkontakte.VkontakteAuthProvider
+10100:com.github.kompot.play2sec.authentication.providers.anonymous.AnonymousAuthProvider
+100000:com.github.kompot.play2sec.authentication.DefaultPlaySecPlugin

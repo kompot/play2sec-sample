@@ -15,7 +15,7 @@ import play.api.libs.json.{JsObject, JsString, JsValue}
 import play.api.mvc.{Results, Request}
 import play.api.templates.Html
 import play.i18n.Messages
-import scala.concurrent.Await
+import scala.concurrent.{ExecutionContext, Future, Await}
 import scala.concurrent.duration._
 import com.github.kompot.play2sec.authentication
 import controllers.JsResponseError
@@ -23,6 +23,8 @@ import controllers.JsResponseOk
 import model.User
 import model.Token
 import controllers.JsResponseError
+import bootstrap.Global.Injector
+import ExecutionContext.Implicits.global
 
 class MyUsernamePasswordAuthProvider(app: play.Application)
     extends UsernamePasswordAuthProvider[Token, MyLoginUsernamePasswordAuthUser,
@@ -30,6 +32,7 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
         (String, String), String] with JsonWebConversions {
   lazy val tokenService = bootstrap.Global.Injector.tokenService
   protected val mailService = bootstrap.Global.Injector.mailService
+  lazy val userService = Injector.userService
 
   override protected def neededSettingKeys = {
     super.neededSettingKeys ++ List(
@@ -51,53 +54,46 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
 
   protected def getResetPasswordForm = Authorization.resetPasswordForm
 
-  protected def loginUser(authUser: MyLoginUsernamePasswordAuthUser): LoginResult.Value = {
-    val u = authentication.getUserService.getByAuthUserIdentitySync(authUser).asInstanceOf[Option[User]]
-    if (!u.isDefined) {
-      LoginResult.NOT_FOUND
-    } else {
-      if (!u.get.emailValidated) {
-        LoginResult.USER_UNVERIFIED
+  protected def loginUser(authUser: MyLoginUsernamePasswordAuthUser): Future[LoginResult.Value] = {
+    for {
+      u <- userService.getByAuthUserIdentity(authUser)
+    } yield {
+      if (!u.isDefined) {
+        LoginResult.NOT_FOUND
       } else {
-        for (u1 <- u; acc <- u1.remoteUsers) {
-          Logger.debug("-- " + acc)
-          // TODO: only one email provider available?
-          if (getKey.equals(acc.provider)) {
-            if (authUser.checkPassword(u1.password, authUser.clearPassword)) {
-              // Password was correct
-              return LoginResult.USER_LOGGED_IN
-            } else {
-              // if you don't return here,
-              // you would allow the user to have
-              // multiple passwords defined
-              // usually we don't want this
-              Logger.debug("status WRONG_PASSWORD 1")
-              return LoginResult.WRONG_PASSWORD
-            }
-          }
+        if (!u.get.emailValidated) {
+          LoginResult.USER_UNVERIFIED
+        } else {
+          val goodPassword = u.get.remoteUsers.exists(_.provider == getKey &&
+              authUser.checkPassword(u.get.password, authUser.clearPassword))
+          if (goodPassword)
+            LoginResult.USER_LOGGED_IN
+          else
+            LoginResult.WRONG_PASSWORD
         }
-        Logger.debug("status WRONG_PASSWORD 2")
-        LoginResult.WRONG_PASSWORD
       }
     }
   }
 
-  protected def signupUser[A](user: MyUsernamePasswordAuthUser, request: Request[A]): SignupResult.Value = {
-    val u = authentication.getUserService.getByAuthUserIdentitySync(user).asInstanceOf[Option[User]]
-    if (u.isDefined) {
-      if (u.get.emailValidated) {
-        // This user exists, has its email validated and is active
-        SignupResult.USER_EXISTS
+  protected def signupUser[A](user: MyUsernamePasswordAuthUser, request: Request[A]): Future[SignupResult.Value] = {
+    for {
+      u <- userService.getByAuthUserIdentity(user)
+    } yield {
+      if (u.isDefined) {
+        if (u.get.emailValidated) {
+          // This user exists, has its email validated and is active
+          SignupResult.USER_EXISTS
+        } else {
+          // this user exists, is active but has not yet validated its
+          // email
+          SignupResult.USER_EXISTS_UNVERIFIED
+        }
       } else {
-        // this user exists, is active but has not yet validated its
-        // email
-        SignupResult.USER_EXISTS_UNVERIFIED
+        authentication.getUserService.save(user)
+        // Usually the email should be verified before allowing login, however
+        // if you return SignupResult.USER_CREATED then the user gets logged in directly
+        SignupResult.USER_CREATED_UNVERIFIED
       }
-    } else {
-      authentication.getUserService.save(user)
-      // Usually the email should be verified before allowing login, however
-      // if you return SignupResult.USER_CREATED then the user gets logged in directly
-      SignupResult.USER_CREATED_UNVERIFIED
     }
   }
 

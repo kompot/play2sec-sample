@@ -23,9 +23,9 @@ trait JsonWebConversions {
 
   implicit def toJson(jro: JsResponse): JsValue = {
     JsObject(Seq(
-      ("status" -> JsString(jro.getStatus)),
-      ("message" -> JsString(jro.getMessage)),
-      ("data" -> jro.getData)
+      "status" -> JsString(jro.getStatus),
+      "message" -> JsString(jro.getMessage),
+      "data" -> jro.getData
     ))
   }
 

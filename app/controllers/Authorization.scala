@@ -12,9 +12,7 @@ UsernamePasswordAuthProvider}
 import com.github.kompot.play2sec.authentication
 import com.github.kompot.play2sec.authorization.handler.{UserEditUpdate,
 CustomDeadboltHandler}
-import org.mindrot.jbcrypt.BCrypt
 import com.github.kompot.play2sec.authentication._
-import scala.Some
 import com.github.kompot.play2sec.authentication.user.AuthUser
 import play.api.data.Form
 import play.api.libs.json.JsString
@@ -35,6 +33,7 @@ import bootstrap.Global.Injector
 import scala.concurrent.ExecutionContext.Implicits.global
 import reactivemongo.bson.BSONObjectID
 import play.api.Logger
+import scala.concurrent.Future
 
 object Authorization extends Controller with DeadboltActions with JsonWebConversions {
   val userService = Injector.userService
@@ -44,26 +43,26 @@ object Authorization extends Controller with DeadboltActions with JsonWebConvers
     Ok(views.html.auth.index())
   }
 
-  def login = Action { implicit request => userLoginForm.bindFromRequest.fold(
-    { errors => BadRequest[JsValue](JsResponseError("Unable to perform login.", Some(errors))) },
+  def login = Action.async { implicit request => userLoginForm.bindFromRequest.fold(
+    { errors => Future.successful(BadRequest[JsValue](JsResponseError("Unable to perform login.", Some(errors)))) },
     { case _ => UsernamePasswordAuthProvider.handleLogin(request) }
   ) }
 
-  def signup = Action { implicit request =>
+  def signup = Action.async { implicit request =>
     userSignUpForm.bindFromRequest.fold(
-    { errors => BadRequest[JsValue](JsResponseError("Unable to perform signup.", Some(errors))) },
+    { errors => Future.successful(BadRequest[JsValue](JsResponseError("Unable to perform signup.", Some(errors)))) },
     { case _ => UsernamePasswordAuthProvider.handleSignup(request) }
     )
   }
 
-  def authenticate(provider: String) = Action { implicit request =>
+  def authenticate(provider: String) = Action.async { implicit request =>
     authentication.handleAuthentication(provider, request)
   }
 
-  def requestPasswordReset = Action { implicit request =>
+  def requestPasswordReset = Action.async { implicit request =>
     resetPasswordForm.bindFromRequest.fold(
-    { errors => BadRequest[JsValue](JsResponseError("Unable to reset password.", Some(errors))) },
-    { case _ => UsernamePasswordAuthProvider.handleRecoverPassword(request) }
+      { errors => Future.successful(BadRequest[JsValue](JsResponseError("Unable to reset password.", Some(errors)))) },
+      { case _ => UsernamePasswordAuthProvider.handleRecoverPassword(request) }
     )
   }
 
@@ -98,12 +97,14 @@ object Authorization extends Controller with DeadboltActions with JsonWebConvers
   }
 
   def createAnonymousAccount(returnTo: String) = SubjectNotPresent(new CustomDeadboltHandler()) {
-    Action { implicit request =>
-      if (request.session.get(ORIGINAL_URL) == None) {
+    Action.async { implicit request =>
+      if (request.session.get(SESSION_ORIGINAL_URL) == None) {
         val redirectTo = request.headers.get(REFERER).orElse(Some("/")).get
-        val back = (ORIGINAL_URL, if (returnTo != "/") returnTo else redirectTo)
-        Redirect(routes.Authorization.createAnonymousAccount()).withSession(
-          request.session + back)
+        val back = (SESSION_ORIGINAL_URL, if (returnTo != "/") returnTo else redirectTo)
+        Future.successful(
+          Redirect(routes.Authorization.createAnonymousAccount())
+            .withSession(request.session + back)
+        )
       } else {
         handleAuthentication("anonymous", request, Some(Case.SIGNUP))
       }
@@ -114,30 +115,28 @@ object Authorization extends Controller with DeadboltActions with JsonWebConvers
     authentication.logout(request.session)
   }
 
-  def verifyEmailAndLogin(token: String) = Action { implicit request =>
-    Async {
-      for {
-        maybeToken <- tokenService.getValidTokenBySecurityKey(token)
-        email = maybeToken.get.data.\("email").as[String]
-        res <- userService.verifyEmail(maybeToken.get.userId, email)
-        maybeUser <- userService.get(maybeToken.get.userId)
-      } yield {
-        if (maybeUser.isDefined) {
-          if (maybeUser.get.remoteUsers.exists{ r =>
-              r.provider == UsernamePasswordAuthProvider.PROVIDER_KEY &&
-              r.id == email && r.isConfirmed
-          }) {
-            val identity = new AuthUser {
-              def getId = email
-              def getProvider = UsernamePasswordAuthProvider.PROVIDER_KEY
-            }
-            authentication.loginAndRedirect(request, identity)
-          } else {
-            InternalServerError("Email was not verified.")
+  def verifyEmailAndLogin(token: String) = Action.async { implicit request =>
+    for {
+      maybeToken <- tokenService.getValidTokenBySecurityKey(token)
+      email = maybeToken.get.data.\("email").as[String]
+      res <- userService.verifyEmail(maybeToken.get.userId, email)
+      maybeUser <- userService.get(maybeToken.get.userId)
+    } yield {
+      if (maybeUser.isDefined) {
+        if (maybeUser.get.remoteUsers.exists{ r =>
+            r.provider == UsernamePasswordAuthProvider.PROVIDER_KEY &&
+            r.id == email && r.isConfirmed
+        }) {
+          val identity = new AuthUser {
+            def id = email
+            def provider = UsernamePasswordAuthProvider.PROVIDER_KEY
           }
+          MongoWait(authentication.loginAndRedirect(request, Future(identity)))
         } else {
           InternalServerError("Email was not verified.")
         }
+      } else {
+        InternalServerError("Email was not verified.")
       }
     }
   }

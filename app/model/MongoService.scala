@@ -41,17 +41,18 @@ trait MongoService[A <: MongoEntity, B <: BSONDocumentReader[A], C <: BSONDocume
   def exists(id: BSONObjectID): Future[Boolean] = get(id).map(_.isDefined)
 
   def getByIds(ids: Array[BSONObjectID]): Future[List[A]] = {
-    collection.find(BSONDocument("_id" -> BSONDocument("$in" -> ids))).cursor[A].toList
+    collection.find(BSONDocument("_id" -> BSONDocument("$in" -> ids))).cursor[A].collect[List](1000, stopOnError = false)
   }
 
-  def query(doc: BSONDocument = BSONDocument()): Future[List[A]] = collection.find(doc).cursor[A].toList
+  def query(doc: BSONDocument = BSONDocument()): Future[List[A]] =
+    collection.find(doc).cursor[A].collect[List](1000, stopOnError = false)
 
   def queryOne(doc: BSONDocument = BSONDocument()): Future[Option[A]] = collection.find(doc).one[A]
 
   def remove(id: BSONObjectID) = collection.remove(BSONDocument("_id" -> id))
 
-  def countAll = db.command(Count(collectionName, None))
-  def removeAll = collection.remove(BSONDocument())
+  def countAll() = db.command(Count(collectionName, None))
+  def removeAll() = collection.remove(BSONDocument())
 }
 
 object MongoWait {

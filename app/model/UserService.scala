@@ -19,6 +19,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class UserService extends com.github.kompot.play2sec.authentication.service.UserService
     with MongoService[User, userReader.type, userWriter.type]{
+  type UserClass = User
+
   protected def collectionName = "user"
   protected def bsonDocumentReader = userReader
   protected def bsonDocumentWriter = userWriter
@@ -39,14 +41,14 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
   def getByAuthUserIdentity(authUser: AuthUserIdentity): Future[Option[User]] = {
     queryOne(BSONDocument(
       "remoteUsers.provider" -> authUserProviderToRemoteUserProvider(authUser).toString,
-      "remoteUsers.id" -> authUser.getId
+      "remoteUsers.id" -> authUser.id
     ))
   }
 
   def existsByAuthUserIdentity(authUser: AuthUser): Future[Boolean] = {
     queryOne(BSONDocument(
       "remoteUsers.provider" -> authUserProviderToRemoteUserProvider(authUser).toString,
-      "remoteUsers.id" -> authUser.getId
+      "remoteUsers.id" -> authUser.id
     )).map(!_.isEmpty)
   }
 
@@ -55,7 +57,7 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
   def usernameIsUnique(username: String, currentUser: Option[User]): Future[Boolean] = {
     // TODO: check case insensitive
     queryOne(BSONDocument("username" -> username)).map(_.filter(u =>
-      currentUser.map(_.username != u.username).getOrElse(false)).isEmpty)
+      currentUser.exists(_.username != u.username)).isEmpty)
   }
 
   def checkLoginAndPassword(email: String, password: String): Future[Boolean] = {
@@ -63,7 +65,7 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
     for {
       dbu <- getByAuthUserIdentity(loginUser)
     } yield {
-      dbu.map{ user => loginUser.checkPassword(user.password, password)}.getOrElse(false)
+      dbu.exists(user => loginUser.checkPassword(user.password, password))
     }
   }
 
@@ -71,10 +73,10 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
     existsByAuthUserIdentity(new MyUsernamePasswordAuthUser("", email))
 
   def createByAuthUserIdentity(authUser: AuthUser): User = {
-    val remoteUser = new RemoteUser(authUserProviderToRemoteUserProvider(authUser).toString, authUser.getId)
+    val remoteUser = new RemoteUser(authUserProviderToRemoteUserProvider(authUser).toString, authUser.id)
     val pass = if (authUser.isInstanceOf[UsernamePasswordAuthUser]) authUser.asInstanceOf[UsernamePasswordAuthUser].getHashedPassword else ""
-    val nameLast = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].getLastName else ""
-    val nameFirst = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].getFirstName else ""
+    val nameLast = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].lastName else ""
+    val nameFirst = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].firstName else ""
 
     val user = new User(BSONObjectID.generate, None, Some(pass), nameLast,
       nameFirst, Set(remoteUser))
@@ -84,45 +86,43 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
   }
 
   def authUserProviderToRemoteUserProvider(authUser: AuthUserIdentity): RemoteUserProvider.Value = {
-    RemoteUserProvider.withName(authUser.getProvider)
+    RemoteUserProvider.withName(authUser.provider)
   }
 
   def showUsers() = query()
 
-  def save(authUser: AuthUser): Option[Any] = {
-    if (!MongoWait(existsByAuthUserIdentity(authUser))) {
-      Some(createByAuthUserIdentity(authUser))
-    } else {
-      None
+  def save(authUser: AuthUser) = {
+    for {
+      existing <- existsByAuthUserIdentity(authUser)
+    } yield {
+      if (!existing)
+        Some(createByAuthUserIdentity(authUser))
+      else
+        None
     }
-  }
-
-  def getByAuthUserIdentitySync(identity: AuthUserIdentity): Option[User] = {
-    MongoWait(getByAuthUserIdentity(identity))
   }
 
   def merge(newUser: AuthUser, oldUser: Option[AuthUser]) = {
     link(oldUser, newUser)
-    newUser
+    Future(newUser)
   }
 
-  def link(oldUser: Option[AuthUser], newUser: AuthUser): AuthUser = {
+  def link(oldUser: Option[AuthUser], newUser: AuthUser) = {
     oldUser match {
-      case None => newUser
+      case None => Future(newUser)
       case Some(old) => {
-        val u = getByAuthUserIdentitySync(old)
-        u.map { o =>
-          // isConfirmed should be set according to provider, e. g. for email
-          // provider we should set it only when clicked on a link in an email
-          val newRu = RemoteUser(newUser.getProvider, newUser.getId, isConfirmed = true)
+        for {
+          u <- getByAuthUserIdentity(old)
+        } yield {
+          val newRu = RemoteUser(newUser.provider, newUser.id, isConfirmed = true)
           collection.update(
             BSONDocument("_id" -> u.get._id),
             BSONDocument("$push" ->
                 BSONDocument("remoteUsers" -> remoteUserWriter.write(newRu))
             )
           )
+          old
         }
-        old
       }
     }
   }
@@ -149,26 +149,20 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
   /**
    * Detach account from an existing local user.
    * Returns the auth user to log in with
-   *
-   * @param currentUser
-   * @param provider
-   * @return
    */
   def unlink(currentUser: Option[AuthUser], provider: String) = {
-    currentUser.map { user =>
-      getByAuthUserIdentity(user).map { maybeUser =>
-        maybeUser.map { user =>
-          collection.update(
-            BSONDocument("_id" -> user._id),
-            BSONDocument("$pull" ->
-                BSONDocument("remoteUsers" ->
-                    BSONDocument("provider" -> provider)
-                )
-            ), awaitJournalCommit
-          )
-        }
-      }
-      user
+    for {
+      user <- getByAuthUserIdentity(currentUser.get)
+    } yield {
+      collection.update(
+        BSONDocument("_id" -> user.get._id),
+        BSONDocument("$pull" ->
+            BSONDocument("remoteUsers" ->
+                BSONDocument("provider" -> provider)
+            )
+        ), awaitJournalCommit
+      )
+      currentUser
     }
   }
 }

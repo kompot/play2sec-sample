@@ -15,9 +15,8 @@ case class User(_id: BSONObjectID, username: Option[String], password: Option[St
     roles: Set[String] = Set())
     extends MongoEntity with Subject {
 
-  def emailValidated: Boolean = remoteUsers.filter { ru =>
-    ru.provider == RemoteUserProvider.email.toString && ru.isConfirmed
-  }.size == 1
+  def emailValidated: Boolean = remoteUsers.count(ru =>
+    ru.provider == RemoteUserProvider.email.toString && ru.isConfirmed) == 1
 
   /**
    * Get email if validated. Otherwise [[scala.None]] (if not present
@@ -25,18 +24,15 @@ case class User(_id: BSONObjectID, username: Option[String], password: Option[St
    * @return
    */
   def email: Option[String] = {
-    remoteUsers.filter { ru =>
-      ru.provider == RemoteUserProvider.email.toString && ru.isConfirmed
-    }.headOption.map(_.id)
+    remoteUsers.find(ru =>
+      ru.provider == RemoteUserProvider.email.toString && ru.isConfirmed).map(_.id)
   }
 
   def confirmed: Boolean = !remoteUsers.filter(_.isConfirmed).isEmpty
 
   def usernameOrId: String = username.getOrElse(pk)
 
-  def getRoles: List[DeadboltRole] = {
-    roles.map(DeadboltRole(_)).to[List]
-  }
+  def getRoles: List[DeadboltRole] = roles.map(DeadboltRole).to[List]
 
   def getPermissions: List[Permission] = ???
 

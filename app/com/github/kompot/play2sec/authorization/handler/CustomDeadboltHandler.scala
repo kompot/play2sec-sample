@@ -4,10 +4,12 @@
 
 package com.github.kompot.play2sec.authorization.handler
 
-import play.api.mvc.{Request, Result, Results}
+import play.api.mvc.{SimpleResult, Request, Result, Results}
 import com.github.kompot.play2sec.authorization.scala._
 import com.github.kompot.play2sec.authorization.core.models.Subject
 import com.github.kompot.play2sec.authentication
+import scala.concurrent.Future
+import model.MongoWait
 
 class CustomDeadboltHandler(dynamicResourceHandler: Option[DynamicResourceHandler] = None) extends DeadboltHandler {
   val userService = bootstrap.Global.Injector.userService
@@ -21,11 +23,11 @@ class CustomDeadboltHandler(dynamicResourceHandler: Option[DynamicResourceHandle
       Some(new MyDynamicResourceHandler())
   }
 
-  override def getSubject[A](request: Request[A]): Option[Subject] = {
-    authentication.getUser(request).map(userService.getByAuthUserIdentitySync(_)).getOrElse(None)
-  }
+  override def getSubject[A](request: Request[A]): Option[Subject] =
+    authentication.getUser(request).flatMap(u =>
+      MongoWait(userService.getByAuthUserIdentity(u)))
 
-  def onAuthFailure[A](request: Request[A]): Result = {
-    Results.Forbidden("Access denied.")
+  def onAuthFailure[A](request: Request[A]): Future[SimpleResult] = {
+    Future.successful(Results.Forbidden("Access denied."))
   }
 }

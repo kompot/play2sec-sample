@@ -8,13 +8,13 @@ import com.github.kompot.play2sec.authentication
 import com.typesafe.plugin.MailerPlugin
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import play.api.Configuration
+import play.api.{Logger, Configuration}
 import akka.actor.Cancellable
 import play.libs.Akka
 import play.api.Play.current
+import com.typesafe.plugin
 
 class MailService extends authentication.MailService {
-  val plugin = play.api.Play.application.plugin(classOf[MailerPlugin]).get
   val getConfiguration = play.api.Play.current.configuration.
                          getConfig(MailService.CONFIG_BASE).get
   val delay = Duration(getConfiguration.getLong(MailService.SettingKeys.DELAY).
@@ -30,10 +30,15 @@ class MailService extends authentication.MailService {
 
   private class MailJob(mail: Mail) extends Runnable {
     def run() {
+      Logger.info("Sending mail to " + mail.recipients);
+      // TODO initializing this plugin as a class member results in StackOverflow
+      // might be due to MacWire injection
+
+      val plugin = play.api.Play.application.plugin(classOf[MailerPlugin]).get
       val api = plugin.email
       api.setSubject(mail.subject)
-      api.addRecipient(mail.recipients: _*)
-      api.addFrom(mail.from)
+      api.setRecipient(mail.recipients: _*)
+      api.setFrom(mail.from)
       api.addHeader("X-Mailer", MailService.MAILER + getVersion)
       api.sendHtml(mail.body)
     }

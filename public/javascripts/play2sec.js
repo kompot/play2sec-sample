@@ -43,8 +43,6 @@ angular.module('play2sec', ["ngResource"], ['$provide', function($provide) {
 }]);
 
 function UserCtrl($scope, $rpcWrapper, $authRpcService) {
-  $scope.user = { email: "kompotik@gmail.com" };
-
   $scope.signup = function() {
     $rpcWrapper.call($authRpcService.signup, $scope.user, $scope);
   };

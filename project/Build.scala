@@ -16,12 +16,7 @@ object ApplicationBuild extends Build {
     "com.typesafe" %% "play-plugins-mailer" % "2.2.0"
   )
 
-  def customLessEntryPoints(base: File): PathFinder = (
-    (base / "app" / "assets" / "stylesheets" / "tbs" * "bootstrap.less")
-  )
-
   val main = play.Project(appName, appVersion, appDependencies).settings(
-    lessEntryPoints <<= baseDirectory(customLessEntryPoints)
   )
 
 }

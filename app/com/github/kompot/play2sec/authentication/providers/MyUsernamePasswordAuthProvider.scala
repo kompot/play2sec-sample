@@ -11,7 +11,7 @@ import controllers._
 import model._
 import play.api.Logger
 import play.api.Play.current
-import play.api.libs.json.{JsObject, JsString, JsValue}
+import play.api.libs.json.{Json, JsObject, JsString, JsValue}
 import play.api.mvc.{Results, Request}
 import play.api.templates.Html
 import play.i18n.Messages
@@ -25,6 +25,7 @@ import model.Token
 import controllers.JsResponseError
 import bootstrap.Global.Injector
 import ExecutionContext.Implicits.global
+import Results._
 
 class MyUsernamePasswordAuthProvider(app: play.Application)
     extends UsernamePasswordAuthProvider[Token, MyLoginUsernamePasswordAuthUser,
@@ -78,6 +79,7 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
   protected def signupUser[A](user: MyUsernamePasswordAuthUser, request: Request[A]): Future[SignupResult.Value] = {
     for {
       u <- userService.getByAuthUserIdentity(user)
+      saved <- if (!u.isDefined) authentication.getUserService.save(user) else Future(None)
     } yield {
       if (u.isDefined) {
         if (u.get.emailValidated) {
@@ -89,7 +91,6 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
           SignupResult.USER_EXISTS_UNVERIFIED
         }
       } else {
-        authentication.getUserService.save(user)
         // Usually the email should be verified before allowing login, however
         // if you return SignupResult.USER_CREATED then the user gets logged in directly
         SignupResult.USER_CREATED_UNVERIFIED
@@ -102,20 +103,17 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
   protected def userUnverified(authUser: UsernamePasswordAuthUser) = routes.Authorization.login()
 
   protected def generateSignupVerificationRecord(user: MyUsernamePasswordAuthUser) = {
-    MongoWait(tokenService.generateToken(user, TokenType.CONFIRM_EMAIL,
-      JsObject(Seq("email" -> JsString(user.email)))))
+    MongoWait(tokenService.generateToken(user, Json.obj("email" -> JsString(user.email))))
   }
 
   protected def generateResetPasswordVerificationRecord(user: MyUsernamePasswordAuthUser) =
     ???
 
   protected def getVerifyEmailMailingSubject[A](user: MyUsernamePasswordAuthUser, request: Request[A]) =
-    "Play2sec: please verify your email address"
+    "play2sec: please verify your email address"
 
   protected def getVerifyEmailMailingBody[A](vr: Token, user: MyUsernamePasswordAuthUser, request: Request[A]) = {
-//    views.html.mail.verifySignup(Html(getVerificationLink(vr, user, request)))(request).body
-    // TODO
-    "Click on the link to authorize " + getVerificationLink(vr, user, request)
+    views.html.mail.verifySignup(user.email, getVerificationLink(vr, user, request)).body
   }
 
   protected def getResetPasswordEmailMailingSubject[A](user: MyUsernamePasswordAuthUser, request: Request[A]) =
@@ -131,30 +129,28 @@ class MyUsernamePasswordAuthProvider(app: play.Application)
       request: Request[A]): String = {
     routes.Authorization.verifyEmailAndLogin(token.securityKey).absoluteURL()(request)
   }
-//
+
 //  private def getResetPasswordLink[A](verificationRecord: Token, user: MyUsernamePasswordAuthUser, request: Request[A]): String = {
 //    routes.Authorization.resetPassword(verificationRecord.securityKey).absoluteURL()(request)
 //  }
 
   protected def userExistsJson(authUser: UsernamePasswordAuthUser) =
-    Results.BadRequest[JsValue](JsResponseError(
+    BadRequest[JsValue](JsResponseError(
       "User with such credentials already exists."))
 
   def userSignupUnverifiedJson(user: MyUsernamePasswordAuthUser) =
-    Results.Ok[JsValue](
+    Ok[JsValue](
       JsResponseOk("Email has been sent. You must confirm it.")
     )
 
   def userLoginUnverifiedJson(value: MyLoginUsernamePasswordAuthUser) =
-    Results.BadRequest[JsValue](JsResponseError(
-      "Email was not verified, please check your mail."))
+    BadRequest[JsValue](JsResponseError("Email was not verified, please check your mail."))
 
   protected def onLoginUserNotFoundJson[A](request: Request[A]) =
-    Results.BadRequest[JsValue](JsResponseError(
-      "Unknown email or password."))
+    BadRequest[JsValue](JsResponseError("Unknown email or password."))
 
   protected def onSuccessfulRecoverPasswordJson[A]() =
-    Results.Ok[JsValue](JsResponseOk(
+    Ok[JsValue](JsResponseOk(
       "Please follow instructions in the email."))
 }
 

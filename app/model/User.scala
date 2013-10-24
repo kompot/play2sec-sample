@@ -23,10 +23,8 @@ case class User(_id: BSONObjectID, username: Option[String], password: Option[St
    * or not confirmed).
    * @return
    */
-  def email: Option[String] = {
-    remoteUsers.find(ru =>
+  def email: Option[String] = remoteUsers.find(ru =>
       ru.provider == RemoteUserProvider.email.toString && ru.isConfirmed).map(_.id)
-  }
 
   def confirmed: Boolean = !remoteUsers.filter(_.isConfirmed).isEmpty
 
@@ -36,5 +34,5 @@ case class User(_id: BSONObjectID, username: Option[String], password: Option[St
 
   def getPermissions: List[Permission] = ???
 
-  def pk() = _id.stringify
+  def pk = _id.stringify
 }

@@ -4,7 +4,7 @@
 
 package com.github.kompot.play2sec.authorization.handler
 
-import play.api.mvc.{SimpleResult, Request, Result, Results}
+import play.api.mvc.{SimpleResult, Request, Results}
 import com.github.kompot.play2sec.authorization.scala._
 import com.github.kompot.play2sec.authorization.core.models.Subject
 import com.github.kompot.play2sec.authentication

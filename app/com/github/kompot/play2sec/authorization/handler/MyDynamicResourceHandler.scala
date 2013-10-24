@@ -38,7 +38,7 @@ object MyDynamicResourceHandler {
       override def isAllowed[A, B](name: String, form: Form[B], deadboltHandler: DeadboltHandler, request: Request[A]) = {
         UserEditGet.allowed(
           deadboltHandler.getSubject(request),
-          _.map(isSelfByUsername(getParam(form, request), _)).getOrElse(false)
+          _.exists(isSelfByUsername(getParam(form, request), _))
         )
       }
     },
@@ -46,7 +46,7 @@ object MyDynamicResourceHandler {
       override def isAllowed[A, B](name: String, form: Form[B], deadboltHandler: DeadboltHandler, request: Request[A]) = {
         UserEditUpdate.allowed(
           deadboltHandler.getSubject(request),
-          _.map(isSelf(getParam(form, request), _)).getOrElse(false)
+          _.exists(isSelf(getParam(form, request), _))
         )
       }
     },
@@ -54,7 +54,7 @@ object MyDynamicResourceHandler {
       override def isAllowed[A, B](name: String, form: Form[B], deadboltHandler: DeadboltHandler, request: Request[A]) = {
         UserViewGet.allowed(
           deadboltHandler.getSubject(request),
-          _.map(isSelfByUsername(getParam(form, request), _)).getOrElse(false)
+          _.exists(isSelfByUsername(getParam(form, request), _))
         )
       }
     }

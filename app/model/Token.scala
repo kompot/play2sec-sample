@@ -8,10 +8,9 @@ import reactivemongo.bson.BSONObjectID
 import org.joda.time.DateTime
 import play.api.libs.json.{JsObject, JsNull, JsValue}
 
+/**
+ * Security token that allows restricted actions via email for limited time.
+ */
 case class Token(_id: BSONObjectID, userId: BSONObjectID,
     securityKey: String, created: DateTime, expires: DateTime,
-    usages: TokenType.ValueSet, data: JsObject) extends MongoEntity
-
-object TokenType extends Enumeration {
-  val CONFIRM_EMAIL = Value
-}
+    data: JsObject) extends MongoEntity

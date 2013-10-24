@@ -69,29 +69,23 @@ object Authorization extends Controller with DeadboltActions with JsonWebConvers
   // since method works only for current user, no extra security is required
   // should it be allowed to admins to unlink remote users?
   def unlink(provider: String) = SubjectPresent(new CustomDeadboltHandler()) {
-    Action { implicit request =>
+    Action.async { implicit request =>
       val currentUser = authentication.getUser(request.session)
-      Async {
-        userService.getByAuthUserIdentity(currentUser).map { user =>
-          val prov = user.get.remoteUsers.find(r => r.provider == provider)
-          val rup = userService.authUserProviderToRemoteUserProvider(currentUser.get)
-          prov.map{ p =>
-            if (p.provider == rup.toString) {
-              Forbidden[JsValue](JsResponseError(s"Can't unlink provider you are currently logged in with."))
-            } else if (user.get.remoteUsers.size == 1) {
-              Forbidden[JsValue](JsResponseError(s"Can't unlink last provider to log in with."))
-            } else {
-              authentication.getUserService.unlink(currentUser, provider)
-              Ok[JsValue](
-                JsResponseOk(s"Remote provider $provider has been unlinked.",
-                  user.get.copy(remoteUsers = user.get.remoteUsers - prov.get)
-                )
-              )
-            }
-          }.getOrElse(
-            Forbidden[JsValue](JsResponseError(s"Provider $provider not found"))
-          )
-        }
+      userService.getByAuthUserIdentity(currentUser).map { user =>
+        val prov = user.get.remoteUsers.find(r => r.provider == provider)
+        val rup = userService.authUserProviderToRemoteUserProvider(currentUser.get)
+        prov.map{ p =>
+          if (p.provider == rup.toString) {
+            Forbidden[JsValue](JsResponseError(s"Can't unlink provider you are currently logged in with."))
+          } else if (user.get.remoteUsers.size == 1) {
+            Forbidden[JsValue](JsResponseError(s"Can't unlink last provider to log in with."))
+          } else {
+            authentication.getUserService.unlink(currentUser, provider)
+            Ok[JsValue](JsResponseOk(s"Remote provider $provider has been unlinked."))
+          }
+        }.getOrElse(
+          Forbidden[JsValue](JsResponseError(s"Provider $provider not found"))
+        )
       }
     }
   }
@@ -149,16 +143,16 @@ object Authorization extends Controller with DeadboltActions with JsonWebConvers
           for {
             maybeUser <- userService.getByAuthUserIdentity(authentication.getUser(request))
           } yield {
-            val allowed = maybeUser.map(u => {
+            val allowed = maybeUser.exists { u =>
               val adh = new CustomDeadboltHandler()
               adh.getDynamicResourceHandler(request).get.isAllowed(
                 zone + "$",
                 Form("meta" -> nonEmptyText).bind(Map(("meta", meta))),
                 adh, request)
-            }).getOrElse(false)
-            Ok(JsObject(Seq(
+            }
+            Ok(Json.obj(
               (zone, JsBoolean(allowed))
-            )))
+            ))
           }
         }
       } }

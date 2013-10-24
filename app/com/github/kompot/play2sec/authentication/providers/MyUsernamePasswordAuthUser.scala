@@ -11,6 +11,5 @@ import com.github.kompot.play2sec.authentication.user.NameIdentity
 case class MyUsernamePasswordAuthUser(password: String, email: String)
     extends UsernamePasswordAuthUser(password, email) with NameIdentity {
   def this(password: String) = this(password, "")
-  // TODO: inject some name here?
   def name = ""
 }

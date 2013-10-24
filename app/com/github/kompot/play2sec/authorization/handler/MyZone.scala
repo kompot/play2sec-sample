@@ -11,7 +11,7 @@ sealed trait MyZone extends Zone {
   def allowed(maybeSubject: Option[Subject], allowed: Option[Subject] => Boolean): Boolean = {
     if (allowedToEverybody) {
       true
-    } else if (allowedToAdmin && maybeSubject.map(_.getRoles.contains(DeadboltRole("admin"))).getOrElse(false)) {
+    } else if (allowedToAdmin && maybeSubject.exists(_.getRoles.contains(DeadboltRole("admin")))) {
       true
     } else if (allowedToSelf && allowed(maybeSubject)) {
       true

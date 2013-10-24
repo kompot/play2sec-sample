@@ -18,12 +18,13 @@ import model.MongoConversions._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class UserService extends com.github.kompot.play2sec.authentication.service.UserService
-    with MongoService[User, userReader.type, userWriter.type]{
+    with MongoService {
+  type A = User
   type UserClass = User
 
   protected def collectionName = "user"
-  protected def bsonDocumentReader = userReader
-  protected def bsonDocumentWriter = userWriter
+
+  protected val bsonDocumentHandler = userHandler
 
   def getByUsernameOrId(usernameOrId: String): Future[Option[User]] =
     if (isUsernameOrIdIsId(usernameOrId))
@@ -74,9 +75,18 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
 
   def createByAuthUserIdentity(authUser: AuthUser): User = {
     val remoteUser = new RemoteUser(authUserProviderToRemoteUserProvider(authUser).toString, authUser.id)
-    val pass = if (authUser.isInstanceOf[UsernamePasswordAuthUser]) authUser.asInstanceOf[UsernamePasswordAuthUser].getHashedPassword else ""
-    val nameLast = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].lastName else ""
-    val nameFirst = if (authUser.isInstanceOf[ExtendedIdentity]) authUser.asInstanceOf[ExtendedIdentity].firstName else ""
+    val pass = authUser match {
+      case user: UsernamePasswordAuthUser => user.getHashedPassword
+      case _ => ""
+    }
+    val nameLast = authUser match {
+      case identity: ExtendedIdentity => identity.lastName
+      case _ => ""
+    }
+    val nameFirst = authUser match {
+      case identity: ExtendedIdentity => identity.firstName
+      case _ => ""
+    }
 
     val user = new User(BSONObjectID.generate, None, Some(pass), nameLast,
       nameFirst, Set(remoteUser))
@@ -118,7 +128,7 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
           collection.update(
             BSONDocument("_id" -> u.get._id),
             BSONDocument("$push" ->
-                BSONDocument("remoteUsers" -> remoteUserWriter.write(newRu))
+                BSONDocument("remoteUsers" -> remoteUserHandler.write(newRu))
             )
           )
           old
@@ -157,10 +167,8 @@ class UserService extends com.github.kompot.play2sec.authentication.service.User
       collection.update(
         BSONDocument("_id" -> user.get._id),
         BSONDocument("$pull" ->
-            BSONDocument("remoteUsers" ->
-                BSONDocument("provider" -> provider)
-            )
-        ), awaitJournalCommit
+            BSONDocument("remoteUsers" -> BSONDocument("provider" -> provider))),
+        awaitJournalCommit
       )
       currentUser
     }

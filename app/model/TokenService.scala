@@ -17,7 +17,7 @@ class TokenService(userService: UserService)
     extends MongoService {
   type A = Token
 
-  protected def collectionName = "token"
+  protected val collectionName = "token"
 
   implicit protected val bsonDocumentHandler = tokenHandler
 

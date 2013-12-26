@@ -20,9 +20,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class UserService extends com.github.kompot.play2sec.authentication.service.UserService
     with MongoService {
   type A = User
+
   type UserClass = User
 
-  protected def collectionName = "user"
+  protected val collectionName = "user"
 
   protected val bsonDocumentHandler = userHandler
 

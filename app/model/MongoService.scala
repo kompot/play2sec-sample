@@ -21,13 +21,17 @@ import reactivemongo.api.collections.default.BSONCollection
 
 trait MongoService extends ImplicitBSONHandlers {
   type A <: MongoEntity
+
   protected val db =  ReactiveMongoPlugin.db
-  protected val collection = db[BSONCollection](collectionName)
+
   protected val collectionName: String
+
   protected val awaitJournalCommit: GetLastError = GetLastError(j = true)
+
   implicit protected val bsonDocumentHandler: BSONDocumentReader[A] with BSONDocumentWriter[A] with BSONHandler[BSONDocument, A]
 
   def insert(a: A): Future[LastError] = collection.insert(a, awaitJournalCommit)
+
   def update(a: A): Future[LastError] = collection.update(BSONDocument("_id" -> a._id), a, awaitJournalCommit, upsert = false)
 
   def get(id: BSONObjectID): Future[Option[A]] = collection.find(BSONDocument("_id" -> id)).one[A]
@@ -50,5 +54,9 @@ trait MongoService extends ImplicitBSONHandlers {
   def remove(id: BSONObjectID) = collection.remove(BSONDocument("_id" -> id))
 
   def countAll() = db.command(Count(collectionName, None))
+
   def removeAll() = collection.remove(BSONDocument())
+
+  // TODO could be made val if collection name is somehow known
+  protected def collection = db[BSONCollection](collectionName)
 }
